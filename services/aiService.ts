@@ -1,46 +1,53 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
 
-// We use this to simulate what the "Windows Engine" would be doing in the background
-// to provide those context-aware hints.
-
-const MOCK_DELAY = 1000;
+const MOCK_DELAY = 800;
 
 export async function analyzeIntent(content: string) {
-  // In a real app, we would use Gemini to identify what the user is copying.
-  // "Is this a medical claim ID? Is it a customer address?"
+  // Simple heuristic for immediate UI feedback
   return new Promise((resolve) => {
     setTimeout(() => {
-      if (content.includes('@')) resolve("Detected: Email Address");
-      if (content.match(/\d{5}/)) resolve("Detected: Postal Code / ID");
-      if (content.length > 100) resolve("Detected: Long-form Prose");
+      if (content.includes('@')) resolve("Detected: Email / Communication");
+      if (content.match(/\d{5}/)) resolve("Detected: Numeric Identifier");
+      if (content.toLowerCase().includes('http')) resolve("Detected: External Resource");
+      if (content.length > 50) resolve("Detected: Contextual Text");
       resolve("Detected: General Data Stream");
     }, MOCK_DELAY);
   });
 }
 
-// Logic for a real integration if process.env.API_KEY were active for the chat part
-export const getGeminiSuggestion = async (clipboard: string, activeApp: string) => {
-  if (!process.env.API_KEY) return "Simulation Mode: No API Key provided.";
-  
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
-    contents: `The user copied: "${clipboard}". The current application window is "${activeApp}". Suggest 3 useful automation actions.`,
-    config: {
+export const getGeminiSuggestion = async (clipboard: string) => {
+  if (!process.env.API_KEY) {
+    console.warn("API_KEY not found in environment.");
+    return [{ action: "Local Mode", description: "Set API_KEY to enable AI mapping." }];
+  }
+
+  try {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: [{ parts: [{ text: `The user copied: "${clipboard}". Suggest 3 useful automation actions based on this data.` }] }],
+      config: {
         responseMimeType: "application/json",
         responseSchema: {
-            type: Type.ARRAY,
-            items: {
-                type: Type.OBJECT,
-                properties: {
-                    action: { type: Type.STRING },
-                    description: { type: Type.STRING }
-                }
-            }
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              action: { type: Type.STRING },
+              description: { type: Type.STRING }
+            },
+            required: ["action", "description"]
+          }
         }
-    }
-  });
-  
-  return JSON.parse(response.text);
+      }
+    });
+
+    const text = response.text;
+    if (!text) return [];
+    return JSON.parse(text.trim());
+  } catch (error) {
+    console.error("Gemini Analysis Error:", error);
+    return [{ action: "Error", description: "Failed to reach intelligence layer." }];
+  }
 };
