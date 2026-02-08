@@ -1,0 +1,8 @@
+{
+  "name": "Bubble Companion",
+  "description": "A fluid interface between human intent and system input, featuring a floating, reactive bubble UI for clipboard management and intelligent data mapping.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
